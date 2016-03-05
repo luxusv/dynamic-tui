@@ -1,0 +1,6 @@
+menu,0,Hoofdmenu,blub,blub
+item,0.1,submenu1,menu,1
+item,0.2,test scriptje,script,/root/test.sh
+item,0.9,submenu2,menu,9
+menu,1,Submenu1,,
+menu,9,Submenu2,,

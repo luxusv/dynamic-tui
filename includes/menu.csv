@@ -3,7 +3,7 @@ item,0.1,submenu1,menu,33
 item,0.2,test scriptje,script,/root/test.sh
 item,0.3,Users&Groups,menu,9
 menu,33,Submenu1,,
-item,33.1,test1,script,,
+item,33.1,test1,menu,34
 item,33.2,test2,script,,
 item,33.3,test3,script,,
 item,33.4,test4,script,,
@@ -13,6 +13,17 @@ item,33.7,test7,script,,
 item,33.8,test8,script,,
 item,33.9,test9,script,,
 item,33.10,test10,script,,
+menu,34,Submenu2,,
+item,34.1,test1,script,,
+item,34.2,test2,script,,
+item,34.3,test3,script,,
+item,34.4,test4,script,,
+item,34.5,test5,script,,
+item,34.6,test6,script,,
+item,34.7,test7,script,,
+item,34.8,test8,script,,
+item,34.9,test9,script,,
+item,34.10,test10,script,,
 menu,9,User&Group management,,
 item,9.1,Show users,script,/root/git/dynamic-tui/users.sh,-t user -a show
 item,9.2,Create user,script,/root/git/dynamic-tui/users.sh,-t user -a create

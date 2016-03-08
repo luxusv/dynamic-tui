@@ -40,11 +40,9 @@ show_menu()
     if [[ ${menuitems} != "" ]]; then
         oIFS="${IFS}"
         IFS="/"
-        local choice=$($DIALOG --clear --keep-tite --title "${menuarray[2]}" --backtitle "${backarray[3]}" --menu "${menuarray[4]}" 0 0 10 ${menuitems} 3>&1 1>&2 2>&3)
+        choice=$($DIALOG --keep-tite --title "${menuarray[2]}" --backtitle "${backarray[3]}" --menu "${menuarray[4]}" 0 0 10 ${menuitems} 3>&1 1>&2 2>&3)
         retval=$?
         IFS=${oIFS}
-
-        echo "retval = ${retval}"
 
         case ${retval} in
             0)

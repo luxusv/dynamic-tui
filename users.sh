@@ -16,9 +16,6 @@ while [[ $# > 1 ]]; do
 shift
 done
 
-tempfile=$(tempfile 2>/dev/null) || tempfile=/tmp/test$$
-trap "rm -f $tempfile" 0 1 2 5 15
-
 DIALOG=${DIALOG=dialog}
 USERFILE="/root/git/dynamic-tui/includes/users.csv"
 MENUFILE="/root/git/dynamic-tui/includes/menu.csv"
@@ -26,11 +23,13 @@ MENUFILE="/root/git/dynamic-tui/includes/menu.csv"
 NAME=
 NEWNAME=
 NEWPASS=
+NEWRIGHTS=
 MENUTEXT=
 
 get_items()
 {
     local iii=0
+    local choice=
     while read line; do
         if [[ $(echo "${line}" | grep "^${TYPE}") ]]; then
             local items[iii]=$(echo -n "${line}" | cut -d , -f2)
@@ -39,11 +38,10 @@ get_items()
         fi
     done < $USERFILE
 
-    $DIALOG --clear --title "Choose ${TYPE}" \
-            --menu "Choose a ${TYPE}" 0 0 10 "${items[@]}" 2>$tempfile
+    choice=$($DIALOG --keep-tite --title "Choose ${TYPE}" \
+            --menu "Choose a ${TYPE}" 0 0 10 "${items[@]}" 3>&1 1>&2 2>&3)
 
     local retval=$?
-    local choice=$(cat $tempfile)
 
     case $retval in
         0)
@@ -56,63 +54,47 @@ get_items()
     esac
 }
 
-set_name()
+set_user_pass()
 {
+    local choice=
     local currentname="${1}"
-    $DIALOG --clear --title "${ACTION} ${TYPE}" --inputbox "${TYPE}name" 0 0 "${currentname}" 2>$tempfile
+    local userflag="0"
+    local passflag="1"
+
+    if [[ ${ACTION} == "edit" ]]; then
+        if [[ ${2} == "username" ]]; then
+            passflag="2"
+        elif [[ ${2} == "password" ]]; then
+            userflag="2"
+        fi
+    fi
+
+    choice=($($DIALOG --keep-tite --title "${ACTION} ${TYPE}" --ok-label "Submit" --insecure \
+                      --mixedform " " 0 0 0 \
+                      "Username        :" 1 1 "${currentname}" 1 20 20 0 ${userflag} \
+                      "Password        :" 2 1 "" 2 20 20 0 ${passflag} \
+                      "Retype password :" 3 1 "" 3 20 20 0 ${passflag} 3>&1 1>&2 2>&3))
 
     local retval=$?
-    local choice="$(cat $tempfile)"
 
     case $retval in
         0)
-            if [[ ! $(grep "${TYPE},${choice}," ${USERFILE}) ]]; then
-                NEWNAME="${choice}"
+            if [[ ! $(grep "${TYPE},${choice[0]}," ${USERFILE}) && ${choice[1]} == ${choice[2]} && ${choice[1]} != "" ]]; then
+                NEWNAME="${choice[0]}"
+                NEWPASS=$(echo "${choice[1]}" | sha256sum | awk '{ print $1 }')
+            elif [[ ${choice[1]} != ${choice[2]} ]]; then
+                sent_message "Password incorrect" "The passwords don't match" set_name_pass
+            elif [[ ${choice[1]} != "" ]]; then
+                sent_message "Password empty" "The password can't be empty" set_name_pass
             else
-                sent_message "User exists" "This username already exists" set_name
+                sent_message "User exists" "This username already exists" set_name_pass
             fi;;
         1)
             exit;;
         255)
             exit;;
     esac
-}
 
-set_password()
-{
-    local retval=""
-    local newpass1=""
-    local newpass2=""
-
-    $DIALOG --clear --title "Enter password" --passwordbox " " 0 0 2>$tempfile
-
-    retval=$?
-    newpass1="$(cat $tempfile)"
-
-    case $retval in
-        0)
-            $DIALOG --clear --title "Verify password" --passwordbox " " 0 0 2>$tempfile
-
-            retval=$?
-            newpass2="$(cat $tempfile)"
-
-            case $retval in
-                0)
-                    if [[ ${newpass1} == ${newpass2} ]]; then
-                        NEWPASS=$(echo "${newpass1}" | sha256sum | awk '{ print $1 }')
-                    else
-                        sent_message "Password incorrect" "The passwords don't match" set_password
-                    fi;;
-                1)
-                    exit;;
-                255)
-                    exit;;
-            esac;;
-        1)
-            exit;;
-        255)
-            exit;;
-    esac
 }
 
 set_rights()
@@ -122,16 +104,13 @@ set_rights()
     get_menu
     oIFS=${IFS}
     IFS="/"
-    $DIALOG --clear --title "${ACTION} ${TYPE}" --checklist " " 17 0 10 ${MENUTEXT} 2>$tempfile
-
+    choice=$($DIALOG --keep-tite --title "${ACTION} ${TYPE}" --no-tags --checklist " " 0 0 0 ${MENUTEXT} 3>&1 1>&2 2>&3)
     retval=$?
     IFS=${oIFS}
-    choice=$(cat $tempfile)
 
     case $retval in
     0)
-        echo "choice = ${choice} $"
-        exit;;
+        NEWRIGHTS=${choice[@]};;
     1)
         exit;;
     255)
@@ -141,19 +120,23 @@ set_rights()
 
 write_changes()
 {
-    if [[ "${TYPE}" -eq "user" ]]; then
-        if [[ "${ACTION}" -eq "create" ]]; then
+    if [[ ${TYPE} == "user" ]]; then
+        if [[ ${ACTION} == "create" ]]; then
             echo "${TYPE},${NEWNAME},${NEWPASS},${NEWRIGHTS}" >> ${USERFILE}
         else
-            local entry="$(grep "${TYPE},${USER}," ${USERFILE})"
-            local user="$(echo "${entry}" | cut -d , -f2)"
-            local pass="$(echo "${entry}" | cut -d , -f3)"
-            local rights="$(echo "${entry}" | cut -d , -f4)"
+            oIFS=${IFS}
+            IFS=","
+            local entry=($(grep "${TYPE},${USER}," ${USERFILE}))
+            IFS=${oIFS}
+            local entry=$(grep "${TYPE},${USER}," ${USERFILE})
+            local user="${entry[1]}"
+            local pass="${entry[2]}"
+            local rights="${entry[3]}"
 
             sed -i "s/${entry}/${TYPE},${NEWNAME:-$user},${NEWPASS:-$pass},${NEWRIGHTS:-$rights}/" ${USERFILE}
         fi
-#    elif [[ "${TYPE}" -eq "group" ]]; then
-#        if [[ "${ACTION}" -eq "create" ]]; then
+#    elif [[ ${TYPE} == "group" ]]; then
+#        if [[ ${ACTION} == "create" ]]; then
 #
 #        else
 #
@@ -167,7 +150,7 @@ sent_message()
     local message="${2}"
     local action="${3}"
 
-    $DIALOG --clear --title "${title}" --msgbox "${message}" 0 0
+    $DIALOG --keep-tite --title "${title}" --msgbox "${message}" 0 0
     ${action}
 }
 
@@ -197,8 +180,9 @@ get_menu()
                 MENUTEXT="${MENUTEXT}/${itemarray[1]}/${spacer}${itemarray[2]}/OFF"
             fi
 
+
             if [[ ${itemarray[3]} == "menu" ]]; then
-                get_menu ${itemarray[4]} "${spacer}  "
+                get_menu ${itemarray[4]} "${spacer}|  "
             fi
     done < /tmp/mypipe${menu}
 
@@ -213,10 +197,9 @@ handle_action()
                 "show")
                     ;;
                 "create")
-#                    set_name
-#                    set_password
+                    set_user_pass
                     set_rights
-#                    write_changes
+                    write_changes
                     ;;
                 "edit")
                     ;;

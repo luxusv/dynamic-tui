@@ -1,43 +1,50 @@
 #!/bin/env sh
 
-tempfile=$(tempfile 2>/dev/null) || tempfile=/tmp/test$$
-trap "rm -f $tempfile" 0 1 2 5 15
+TEMPFILE="/tmp/temp$$"
 
-DIALOG=${DIALOG=whiptail}
+DIALOG=${DIALOG=dialog}
 parent[0]=0 
 menu=0
-menufile="/root/git/dynamic-tui/includes/menu.csv"
+MENUFILE="/root/git/dynamic-tui/includes/menu.csv"
 
 show_menu()
 {
-    if [[ ! $(grep "menu,${1}," ${menufile}) ]]; then
-        handle error "No menu with ID ${1} has been defined!"
+    oIFS="${IFS}"
+    IFS=","
+    local menuarray=($(grep "menu,${1}," ${MENUFILE}))
+    IFS=${oIFS}
+
+    if [[ ${menustring[0]} == "menu"  ]]; then
+        handle_error "No menu with ID ${1} has been defined!"
     fi
 
-    menutitle=$(grep "^menu,${menu}" ${menufile} | cut -d , -f3)
-    backtitle=$(grep "^menu,${menu}" ${menufile} | cut -d , -f4)
-    menutext=$(grep "^menu,${menu}" ${menufile} | cut -d , -f5)
-    menuitems=""
+    local menuitems=""
+
+    grep "^item,${menu}\." ${MENUFILE} > ${TEMPFILE}
+
     while read line; do
-        if [[ $(echo ${line} | grep "^item,${menu}\.") ]]; then
-            number=$(echo ${line} | cut -d , -f2 | cut -d . -f2)
-            name=$(echo ${line} | cut -d , -f3)
-            if [[ ${menuitems} == "" ]]; then
-                menuitems="${number}/${name}"
-            else
-                menuitems="${menuitems}/${number}/${name}"
-            fi
+        oIFS="${IFS}"
+        IFS=","
+        local itemarray=(${line})
+        IFS=${oIFS}
+
+        number=$(echo ${itemarray[1]} | cut -d . -f2)
+        name=${itemarray[2]}
+        if [[ ${menuitems} == "" ]]; then
+            menuitems="${number}/${name}"
+        else
+            menuitems="${menuitems}/${number}/${name}"
         fi
-    done < ${menufile}
+    done < ${TEMPFILE}
 
     if [[ ${menuitems} != "" ]]; then
         oIFS="${IFS}"
         IFS="/"
-        $DIALOG --clear --title "${menutitle}" --backtitle "${backtitle}" --menu "${menutext}" 0 0 10 ${menuitems} 2>$tempfile
+        local choice=$($DIALOG --clear --keep-tite --title "${menuarray[2]}" --backtitle "${backarray[3]}" --menu "${menuarray[4]}" 0 0 10 ${menuitems} 3>&1 1>&2 2>&3)
         retval=$?
         IFS=${oIFS}
 
-        choice=$(cat $tempfile)
+        echo "retval = ${retval}"
 
         case ${retval} in
             0)
@@ -55,16 +62,22 @@ show_menu()
 handle_choice()
 {
     choice=$1
-    line=$(grep "$menu\.$choice" $menufile)
-    itemtype=$(echo $line | cut -d , -f4)
-    itemvalue=$(echo $line | cut -d , -f5)
+    oIFS="${IFS}"
+    IFS=","
+    line=($(grep "$menu\.$choice" $MENUFILE))
+    IFS=${oIFS}
+    itemtype=${line[3]}
+    itemvalue=${line[4]}
+    itemparameters=${line[5]}
+
     if [[ $itemtype == "menu" ]]; then
         handle_parent add ${menu}
         menu=${itemvalue}
         show_menu $menu
     elif [[ $itemtype == "script" ]]; then
         if [[ -f ${itemvalue} && -x ${itemvalue} ]]; then
-            ${itemvalue}
+            ${itemvalue} ${itemparameters}
+            show_menu $menu
         else
             handle_error "No script ${itemvalue} available or executable!"
         fi
@@ -76,7 +89,7 @@ handle_error()
 {
     errortext=$1
 
-    $DIALOG --clear --title "Error" --msgbox "${errortext}" 0 0
+    $DIALOG --clear --keep-tite --title "Error" --msgbox "${errortext}" 0 0
 
     finish "noexit"
 }
@@ -84,6 +97,7 @@ handle_error()
 handle_parent()
 {
     count=${#parent[@]}
+
     case $1 in
         add)
             parent[${count}]=$2;;

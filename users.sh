@@ -26,31 +26,46 @@ NEWPASS=
 NEWRIGHTS=
 MENUTEXT=
 
-get_items()
+get_item()
 {
-    local iii=0
     local choice=
-    while read line; do
-        if [[ $(echo "${line}" | grep "^${TYPE}") ]]; then
-            local items[iii]=$(echo -n "${line}" | cut -d , -f2)
-            local items[iii+1]=""
-            ((iii+=2))
-        fi
-    done < $USERFILE
+    local itemtype="${1}"
+    local menutype="${2}"
+    local group="${3}"
+    local spacer=""
 
-    choice=$($DIALOG --keep-tite --title "Choose ${TYPE}" \
-            --menu "Choose a ${TYPE}" 0 0 10 "${items[@]}" 3>&1 1>&2 2>&3)
+    tmplist=($(awk -F',' -v itemtype="${itemtype}" '{ if ($1 == itemtype) print $2 }' ${USERFILE}))
 
-    local retval=$?
+    for item in ${tmplist[@]}; do
+        [[ ${itemlist} != "" ]] && spacer="/"
+        case ${menutype} in
+            "menu") 
+                itemlist="${itemlist}${spacer}${item}";;
+            "radiolist")
+                itemlist="${itemlist}${spacer}${item}";;
+            "checklist")
+                members=" $(awk -F',' -v group="${group}" '{ if ($1 == "group" && $2 == group) print $3 }' ${USERFILE}) "
+                if [[ " ${members} " =~ ${item} ]]; then
+                    itemlist="${itemlist}${spacer}${item}/ON"
+                else
+                    itemlist="${itemlist}${spacer}${item}/OFF"
+                fi
+        esac
+    done
 
-    case $retval in
+    oIFS=${IFS}
+    IFS="/"
+    choice=($($DIALOG --keep-tite --no-items --title "${ACTION} ${TYPE}" --${menutype} "Make a choice" 0 0 0 ${itemlist} 3>&1 1>&2 2>&3))
+    retval=$?
+    IFS=${oIFS}
+
+    case ${retval} in
         0)
-            NAME="${choice}"
-            menu_ $choice;;
+            echo "${choice}";;
         1)
-            exit;;
+            ;;
         255)
-            exit;;
+            ;;
     esac
 }
 
@@ -79,15 +94,18 @@ set_user_pass()
 
     case $retval in
         0)
-            if [[ ! $(grep "${TYPE},${choice[0]}," ${USERFILE}) && ${choice[1]} == ${choice[2]} && ${choice[1]} != "" ]]; then
+            if [[ ( ${2} == "password" || ( ${choice[0]} != "" && ! $(grep "${TYPE},${choice[0]}," ${USERFILE}) ) ) && 
+                  ( ${2} == "username" || ( ${choice[1]} == ${choice[2]} && ${choice[1]} != "" ) ) ]]; then
                 NEWNAME="${choice[0]}"
                 NEWPASS=$(echo "${choice[1]}" | sha256sum | awk '{ print $1 }')
             elif [[ ${choice[1]} != ${choice[2]} ]]; then
-                sent_message "Password incorrect" "The passwords don't match" set_name_pass
-            elif [[ ${choice[1]} != "" ]]; then
-                sent_message "Password empty" "The password can't be empty" set_name_pass
+                sent_message "Password incorrect" "The passwords don't match" set_user_pass
+            elif [[ ${choice[1]} == "" ]]; then
+                sent_message "Password empty" "The password can't be empty" set_user_pass
+            elif [[ ${choice[0]} == "" ]]; then
+                sent_message "Username empty" "The username can't be empty" set_user_pass
             else
-                sent_message "User exists" "This username already exists" set_name_pass
+                sent_message "User exists" "This username already exists" set_user_pass
             fi;;
         1)
             exit;;
@@ -128,12 +146,12 @@ write_changes()
             IFS=","
             local entry=($(grep "${TYPE},${USER}," ${USERFILE}))
             IFS=${oIFS}
-            local entry=$(grep "${TYPE},${USER}," ${USERFILE})
+            local oldentry=$(grep "${TYPE},${USER}," ${USERFILE})
             local user="${entry[1]}"
             local pass="${entry[2]}"
             local rights="${entry[3]}"
 
-            sed -i "s/${entry}/${TYPE},${NEWNAME:-$user},${NEWPASS:-$pass},${NEWRIGHTS:-$rights}/" ${USERFILE}
+            sed -i "s/${oldentry}/${TYPE},${NEWNAME:-$user},${NEWPASS:-$pass},${NEWRIGHTS:-$rights}/" ${USERFILE}
         fi
 #    elif [[ ${TYPE} == "group" ]]; then
 #        if [[ ${ACTION} == "create" ]]; then
@@ -164,6 +182,8 @@ get_menu()
     while read item;
     do
 
+            local selectstatus="OFF"
+
             # Temporarily set field seperator to ,
             oIFS=${IFS}
             IFS=","
@@ -174,10 +194,18 @@ get_menu()
             # Reset field seperator
             IFS=${oIFS}
 
+            if [[ ${ACTION} != "create" ]]; then
+                members="$(awk -F',' -v username=${NAME} '{ if ($1 == "user" && $2 == username) print $4 }' ${USERFILE})"
+
+                if [[ " ${members} " =~ ${itemarray[1]} ]]; then
+                    local selectstatus="ON"
+                fi
+            fi
+
             if [[ ${MENUTEXT} == "" ]]; then
-                MENUTEXT="${itemarray[1]}/${spacer}${itemarray[2]}/OFF"
+                MENUTEXT="${itemarray[1]}/${spacer}${itemarray[2]}/${selectstatus}"
             else
-                MENUTEXT="${MENUTEXT}/${itemarray[1]}/${spacer}${itemarray[2]}/OFF"
+                MENUTEXT="${MENUTEXT}/${itemarray[1]}/${spacer}${itemarray[2]}/${selectstatus}"
             fi
 
 
@@ -189,26 +217,38 @@ get_menu()
     rm /tmp/mypipe${menu} 2>/dev/null
 }
 
+select_edit_action()
+{
+
+}
+
 handle_action()
 {
     case ${TYPE} in
         "user")
             case ${ACTION} in
                 "show")
+                    get_item "user" "menu"
                     ;;
                 "create")
                     set_user_pass
                     set_rights
                     write_changes
                     ;;
+                "copy")
+                    ;;
                 "edit")
+                    NAME=$(get_item "user" "menu")
+                    select_edit_action
                     ;;
                 "delete")
+                    get_item "user" "checklist"
                     ;;
             esac;;
         "group")
             case ${ACTION} in
                 "show")
+                    get_item "group" "menu"
                     ;;
                 "create")
                     ;;

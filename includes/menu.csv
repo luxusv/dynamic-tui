@@ -1,3 +1,10 @@
+# csv-file for the menu.sh script
+# There are two option for creating a menu or subitem:
+#
+# menu,<menuid>,<menuname>,<menutext>,<description>
+# item,<menuid>.<itemnumber>,<itemtext>,script|menu,<menunumber>|<scriptpath>,<scriptoptions>
+#
+#
 menu,0,Hoofdmenu,blub,blub
 item,0.1,submenu1,menu,33
 item,0.2,test scriptje,script,/root/test.sh
@@ -14,22 +21,24 @@ item,33.8,test8,script,,
 item,33.9,test9,script,,
 item,33.10,test10,script,,
 menu,34,Submenu2,,
-item,34.1,test1,script,,
-item,34.2,test2,script,,
-item,34.3,test3,script,,
-item,34.4,test4,script,,
-item,34.5,test5,script,,
-item,34.6,test6,script,,
-item,34.7,test7,script,,
-item,34.8,test8,script,,
-item,34.9,test9,script,,
-item,34.10,test10,script,,
+item,34.1,test001,script,,
+item,34.2,test002,script,,
+item,34.3,test003,script,,
+item,34.4,test004,script,,
+item,34.5,test005,script,,
+item,34.6,test006,script,,
+item,34.7,test007,script,,
+item,34.8,test008,script,,
+item,34.9,test009,script,,
+item,34.10,test010,script,,
 menu,9,User&Group management,,
 item,9.1,Show users,script,/root/git/dynamic-tui/users.sh,-t user -a show
 item,9.2,Create user,script,/root/git/dynamic-tui/users.sh,-t user -a create
-item,9.3,Edit user,script,/root/git/dynamic-tui/users.sh,-t user -a edit
-item,9.4,Delete user,script,/root/git/dynamic-tui/users.sh,-t user -a delte
-item,9.5,Show groups,script,/root/git/dynamic-tui/users.sh,-t group -a show
-item,9.6,Create group,script,/root/git/dynamic-tui/users.sh,-t group -a create
-item,9.7,Edit group,script,/root/git/dynamic-tui/users.sh,-t group -a edit
-item,9.8,Delete group,script,/root/git/dynamic-tui/users.sh,-t group -a delete
+item,9.3,Copy user,script,/root/git/dynamic-tui/users.sh,-t user -a copy
+item,9.4,Edit user,script,/root/git/dynamic-tui/users.sh,-t user -a edit
+item,9.5,Delete user,script,/root/git/dynamic-tui/users.sh,-t user -a delete
+item,9.6,Show groups,script,/root/git/dynamic-tui/users.sh,-t group -a show
+item,9.7,Create group,script,/root/git/dynamic-tui/users.sh,-t group -a create
+item,9.8,Copy group,script,/root/git/dynamic-tui/users.sh,-t group -a copy
+item,9.9,Edit group,script,/root/git/dynamic-tui/users.sh,-t group -a edit
+item,9.0,Delete group,script,/root/git/dynamic-tui/users.sh,-t group -a delete
